@@ -35,16 +35,17 @@ const RSS_FEEDS = [
   'https://finance.yahoo.com/news/rssindex',
   'https://www.marketwatch.com/rss/topstories',
   'https://www.cnbc.com/id/100003114/device/rss/rss.html',
-  'https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms',
-  'https://www.moneycontrol.com/rss/market.xml',
-  'https://www.business-standard.com/rss/markets-106.rss'
+  'https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms'
+  // Removed problematic feeds:
+  // 'https://www.moneycontrol.com/rss/market.xml',
+  // 'https://www.business-standard.com/rss/markets-106.rss'
 ];
 
 // Check interval in milliseconds (3 minutes to reduce frequency)
 const CHECK_INTERVAL = 3 * 60 * 1000;
 
-// Express server port (for Replit)
-const PORT = process.env.PORT || 3000;
+// Express server port (for Render)
+const PORT = process.env.PORT || 10000;
 
 // Delay between processing articles (to prevent sending too many messages at once)
 const MESSAGE_DELAY = 2000; // 2 seconds between messages
@@ -275,15 +276,23 @@ function addToCache(articleId, title) {
  */
 async function checkNewsFeeds() {
   console.log(`Checking news feeds at ${new Date().toLocaleString()}...`);
+  
+  // Keep track of processed feeds to prevent duplicate processing
+  let processedFeeds = 0;
 
   for (const feedUrl of RSS_FEEDS) {
     try {
       console.log(`Fetching feed: ${feedUrl}`);
       const feed = await parser.parseURL(feedUrl);
+      processedFeeds++;
+      
+      let articlesFound = 0;
+      let relevantArticlesFound = 0;
 
       for (const article of feed.items) {
         // Create a unique ID for the article
         const articleId = article.guid || article.link;
+        articlesFound++;
 
         // Skip if article is already in cache or has similar title
         if (articleCache.has(articleId) || isSimilarTitleExists(article.title)) {
@@ -293,6 +302,7 @@ async function checkNewsFeeds() {
         // Check if article is market-relevant
         if (isMarketRelevant(article)) {
           console.log(`Market-relevant article found: ${article.title}`);
+          relevantArticlesFound++;
 
           // Analyze sentiment
           const sentiment = analyzeSentiment(article);
@@ -300,16 +310,23 @@ async function checkNewsFeeds() {
           // Format and send message
           const message = formatMessage(article, sentiment);
           await sendToTelegram(message);
-          console.log(`Message sent to @${CHANNEL_USERNAME}`);
+          
+          // Add delay between messages to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, MESSAGE_DELAY));
 
           // Add to cache after successful processing
           addToCache(articleId, article.title);
         }
       }
+      
+      console.log(`Processed ${articlesFound} articles from ${feedUrl}, found ${relevantArticlesFound} relevant articles`);
+      
     } catch (error) {
-      console.error(`Error processing feed ${feedUrl}:`, error.message);
+      console.error(`Error processing feed ${feedUrl}: ${error.message}`);
     }
   }
+  
+  console.log(`Completed checking ${processedFeeds} out of ${RSS_FEEDS.length} feeds`);
 }
 
 // ================= MAIN APPLICATION =================
