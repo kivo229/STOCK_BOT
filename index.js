@@ -91,6 +91,11 @@ const NEGATIVE_KEYWORDS = [
 // Initialize Express app
 const app = express();
 
+// Define a basic route for healthchecks
+app.get('/', (req, res) => {
+  res.send('Financial News Bot is running!');
+});
+
 // Initialize Telegram bot
 const bot = new TelegramBot(BOT_TOKEN, { polling: false });
 
@@ -295,6 +300,7 @@ async function checkNewsFeeds() {
           // Format and send message
           const message = formatMessage(article, sentiment);
           await sendToTelegram(message);
+          console.log(`Message sent to @${CHANNEL_USERNAME}`);
 
           // Add to cache after successful processing
           addToCache(articleId, article.title);
@@ -332,6 +338,11 @@ function startBot() {
       console.error('Please check your BOT_TOKEN and make sure the bot has been properly created with BotFather');
       process.exit(1);
     });
+
+  // Start the Express server
+  app.listen(PORT, () => {
+    console.log(`Express server running on port ${PORT}`);
+  });
 }
 
 // Start the bot when the script is run
